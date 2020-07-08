@@ -4,7 +4,10 @@ library(DataExplorer)
 library(tibble)
 library(lubridate)
 
-setwd("~/.julia/dev/Examples/datafusion/processing_in_r")
+theme_set(theme_light())
+
+setwd("~/.julia/dev/DataFusion/processing_in_r")
+
 dorig <-  read_csv("daily_data.csv", 
                             col_types = cols(chl = col_double())) %>% rename(chl_water=concentration_of_chlorophyll_in_water) 
 
@@ -37,7 +40,7 @@ dorig <- dorig %>% mutate(time_elapsed=elapsed2, chl_water_meas = !is.na(chl_wat
 glimpse(dorig)
 dorig %>% filter(obsscheme=='type3')
 
-write_csv(dorig, paste0(getwd(),"/periodic1d/observations.csv"))
+#write_csv(dorig, paste0(getwd(),"/periodic1d/observations.csv"))
 
 #unique(dorig$obsscheme)
 
@@ -49,32 +52,52 @@ write_csv(dorig, paste0(getwd(),"/periodic1d/observations.csv"))
 
 # include posterior mean in figure
 pm <- read_csv("postmean_paths.csv", col_names = FALSE) 
-d <- d %>% mutate(postmean=rep(pm$X1,2))
+d <- d %>% mutate(postmean=rep(pm$X1,2)) %>%  mutate(t1 = time_elapsed %% 1) 
 pl2 <- d %>% ggplot(aes(x=time_elapsed, y=y,colour=meastype)) + geom_point(size=0.6,alpha=0.9) +
   facet_wrap(~meastype,ncol=1,scales='free') + ylab("concentration") + 
   geom_path(mapping=aes(x=time_elapsed,y=postmean),colour='black',size=0.3,alpha=0.8)
 pl2
-pdf("~/.julia/dev/Examples/datafusion/figs/vis_data_fit.pdf",width=7,height=5)
+pdf("~/.julia/dev/DataFusion/figs/vis_data_fit.pdf",width=7,height=5)
 pl2
 dev.off()
 
+# first 10 years
+pl2a <- d %>% filter(time_elapsed<10) %>% ggplot(aes(x=time_elapsed, y=y,colour=meastype)) + 
+  geom_point(size=0.9,alpha=0.9) +
+ ylab("concentration") + 
+  geom_path(mapping=aes(x=time_elapsed,y=postmean),colour='black',size=0.9,alpha=0.8)+
+  geom_vline(xintercept=seq(0,10,by=1),col='grey')
+
+pl2a1 <- d %>% filter(time_elapsed<10) %>% ggplot(aes(x=t1, y=y,colour=meastype)) + 
+  geom_point(size=0.9,alpha=0.9) +
+  facet_wrap(~meastype,ncol=1,scales='free') + ylab("concentration") + 
+  geom_point(mapping=aes(x=t1,y=postmean),colour='black',size=0.9,alpha=0.8)
+
+pl2a
+pl2a1
+
+
+
+
 pl3 <- d %>% ggplot(aes(x=time_elapsed, y=y,colour=meastype)) + geom_point(size=0.6,alpha=0.9) +
    ylab("concentration") + 
-  geom_path(mapping=aes(x=time_elapsed,y=postmean),colour='black',size=0.3,alpha=0.8)
+  geom_path(mapping=aes(x=time_elapsed,y=postmean),colour='black',size=0.3,alpha=0.8) + theme(legend.position="bottom")
 pl3
-pdf("~/.julia/dev/Examples/datafusion/figs/vis_data_fit2.pdf",width=7,height=5)
+pdf("~/.julia/dev/DataFusion/figs/vis_data_fit2.pdf",width=7,height=5)
 pl3
 dev.off()
 
-d1 <- d %>% mutate(t1 = time_elapsed %% 1) 
-pl4 <- d1  %>% ggplot(aes(x=t1, y=y,colour=meastype)) + geom_point(size=0.6,alpha=0.9) + geom_smooth(colour='blue') + facet_wrap(~meastype)+ 
-  xlab("time elapsed") + ylab("concentration") + geom_hline(yintercept = 0)
-pdf("~/.julia/dev/Examples/datafusion/figs/vis_data_periodic.pdf",width=7,height=5)
+
+pl4 <- d  %>% ggplot(aes(x=t1, y=y,colour=meastype)) + geom_point(size=0.6,alpha=0.9) +
+  geom_smooth(colour='blue') + facet_wrap(~meastype)+ 
+  xlab("time elapsed") + ylab("concentration") + geom_hline(yintercept = 0)+
+ geom_point(aes(x=t1,y=postmean),size=0.3, colour='black')
+pl4
+pdf("~/.julia/dev/DataFusion/figs/vis_data_periodic.pdf",width=7,height=5)
 pl4
 dev.off()
 
 
 
- }
 
 out <- loess(y ~t1, d1)

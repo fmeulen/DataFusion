@@ -1,15 +1,15 @@
 struct DF
     α::Float64  # mean reversion par
     ξ::Vector{Float64}  #  pars in periodic drift function
-	c::Float64     # multiplicative constant in drift function
     σ2::Float64    # squared diffusivity
     ψ::Vector{Float64}  # vars on observation equation
     t::Vector{Float64}  # t_i i ∈ 1...n
     Δ::Vector{Float64}  # Δ_i = t_i-t_{i-1}
     typeobs::Vector
+	J::Int64  # truncation level Fourier series (so 2J+1 basis functions)
 end
 
-parameters(𝒫::DF) = (𝒫.α, 𝒫.ξ, 𝒫.c, 𝒫.σ2, 𝒫.ψ)
+parameters(𝒫::DF) = (𝒫.α, 𝒫.ξ, 𝒫.σ2, 𝒫.ψ)
 
 struct ObsGroup
 	ind1::Vector{Int64} # indices in y where measurement device 1 is used
@@ -26,13 +26,39 @@ end
 # typeobs="obs3" (both meas devices 1 and 2 used)
 
 implicit = true# true
-μ(t,ξ) =          pdf(Beta(ξ[1],ξ[2]),mod(t,1.0))#dot(ξ, ϕ(t))
+#μ(t,ξ) =          pdf(Beta(ξ[1],ξ[2]),mod(t,1.0))#
+# function ϕ(x, J)
+# 	out = [1.0]
+# 	for j ∈ 1:J
+# 		push!(out, j^(-2)*cos(2π*j*x))
+# 		push!(out, j^(-2)*sin(2π*j*x))
+# 	end
+# 	out
+# end
+
+ϕ0(x) = 0<x<1 ? 2x*(x<0.5) + 2(1-x)*(x>=0.5) : 0.0
+
+function ϕ(x, J)
+	x = mod(x, 1.0)
+	out = [1.0]
+	for j ∈ 1:J
+		for k ∈ 0:2^(j-1)-1
+			push!(out, ϕ0(2^(j-1)*x-k)/j)
+		end
+	end
+	out
+end
+nbasis(J) = 2^(J) # 2*J+1
+
+
+
+μ(t,ξ,J) = dot(ξ, ϕ(t, J))
 if implicit
     A(k,𝒫) = k==0 ?  SMatrix{1,1}([1.0]) : SMatrix{1,1}( [(1.0 + 𝒫.α * 𝒫.Δ[k])^(-1)] )
-    a(k,𝒫) = k==0 ?  (@SVector [0.0]) :   (@SVector [A(k,𝒫)[1,1] * 𝒫.α * 𝒫.c * μ(𝒫.t[k+1],𝒫.ξ) * 𝒫.Δ[k]   ])
+    a(k,𝒫) = k==0 ?  (@SVector [0.0]) :   (@SVector [A(k,𝒫)[1,1] * 𝒫.α * μ(𝒫.t[k+1],𝒫.ξ, 𝒫.J) * 𝒫.Δ[k]   ])
 else
     A(k,𝒫) = k==0 ?  SMatrix{1,1}([1.0]) : SMatrix{1,1}( [1.0 - 𝒫.α * 𝒫.Δ[k]] )
-    a(k,𝒫) = k==0 ?  (@SVector [0.0]) :   (@SVector [𝒫.α * 𝒫.c * μ(𝒫.t[k+1],𝒫.ξ) * 𝒫.Δ[k]   ])
+    a(k,𝒫) = k==0 ?  (@SVector [0.0]) :   (@SVector [𝒫.α *  μ(𝒫.t[k+1],𝒫.ξ) * 𝒫.Δ[k]   ])
 end
 Q(k,𝒫) = k==0 ?  SMatrix{1,1}([0.0]) :   SMatrix{1,1}( [𝒫.σ2 * 𝒫.Δ[k]] )
 H(k,𝒫) =  𝒫.typeobs[k]=="obs3" ? SMatrix{2,1}([1.0 1.0]) : SMatrix{1,1}([1.0])
@@ -91,28 +117,53 @@ function update_ψ(𝒫::DF, 𝒢::ObsGroup, x; Aσ=0.01, Bσ=0.01)
 	return [ψ1, ψ2]
 end
 
-function update_c(𝒫,x)
-	𝒫1 = DF(𝒫.α, 𝒫.ξ, 1.0, 𝒫.σ2, 𝒫.ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs)  # 𝒫 with c=1
-	S1 = 0.0
-	S2 = 0.0
-	for k in 2:length(x)
-		S1 += ((x[k] - A(k-1,𝒫1) * x[k-1]) .* a(k-1,𝒫1)./Q(k-1,𝒫1))[1,1]
-		S2 += a(k-1,𝒫1)[1,1]^2/Q(k-1,𝒫1)[1,1]
-	end
-	rand(Normal(S1/S2, 1/√S2))
-end
+# function update_c(𝒫,x)
+# 	𝒫1 = DF(𝒫.α, 𝒫.ξ, 1.0, 𝒫.σ2, 𝒫.ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs, 𝒫.J)  # 𝒫 with c=1
+# 	S1 = 0.0
+# 	S2 = 0.0
+# 	for k in 2:length(x)
+# 		S1 += ((x[k] - A(k-1,𝒫1) * x[k-1]) .* a(k-1,𝒫1)./Q(k-1,𝒫1))[1,1]
+# 		S2 += a(k-1,𝒫1)[1,1]^2/Q(k-1,𝒫1)[1,1]
+# 	end
+# 	rand(Normal(S1/S2, 1/√S2))
+# end
+
+prior_α = Exponential(5.0)
 
 function update_α(𝒫, x, acc ; propσ=0.1)
 	α = 𝒫.α
 	αᵒ = α * exp(propσ*randn())
-	𝒫ᵒ = DF(αᵒ, 𝒫.ξ, 𝒫.c, 𝒫.σ2, 𝒫.ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs)
+	𝒫ᵒ = DF(αᵒ, 𝒫.ξ, 𝒫.σ2, 𝒫.ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs, 𝒫.J)
 	Δll = -0.5*(SS(𝒫ᵒ,x) - SS(𝒫,x))/𝒫.σ2
-	if log(rand()) <  (Δll  + log(αᵒ) - log(α)) #+ logpdf(prior[1],λᵒ) - logpdf(prior[1],P.λ)
+	Υ = Δll  + log(αᵒ) - log(α) + logpdf(prior_α, αᵒ) - logpdf(prior_α, α)
+	if log(rand()) < Υ
 		α = αᵒ
 		acc += 1
 	end
 	α, acc
 end
+
+"""
+	update_ξ(𝒫,x)
+"""
+function update_ξ(𝒫, x)
+	n = length(x)
+	ᾱ = [sqrt(𝒫.Δ[i]) * 𝒫.α / (1.0 + 𝒫.α* 𝒫.Δ[i]) for i ∈ eachindex(𝒫.Δ)]
+	U = ec1([(x[i] - A(i-1,𝒫) * x[i-1])/sqrt(𝒫.Δ[i-1]) for i ∈ 2:n])
+	nb = nbasis(𝒫.J)
+	V = zeros(nb, nb)
+	v = zeros(nb)
+	for i ∈ 2:n
+		#global v, V
+		ϕi = ϕ(𝒫.t[i], 𝒫.J)
+		V += ᾱ[i-1]^2 * ϕi * ϕi'
+		v += ᾱ[i-1] * U[i-1] * ϕi
+	end
+	β = 0.01
+	V = PDMat(Symmetric(V+β*I))
+	return rand(MvNormalCanon(v/𝒫.σ2,V/𝒫.σ2))
+end
+
 
 function mcmc(𝒫, y; ITER = 1000, propσ=0.2)
 	m0= zeros(d) ; P0=0.0*Matrix(1.0I, d, d)
@@ -128,13 +179,13 @@ function mcmc(𝒫, y; ITER = 1000, propσ=0.2)
 
 		ψ = update_ψ(𝒫, 𝒢, xs)
 		σ2 = update_σ2(𝒫, xs)
-		𝒫 = DF(𝒫.α, 𝒫.ξ, 𝒫.c, σ2, ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs)
+		𝒫 = DF(𝒫.α, 𝒫.ξ,  σ2, ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs, 𝒫.J)
 
 		α, acc = update_α(𝒫, xs, acc; propσ=propσ)
-		𝒫 = DF(α, 𝒫.ξ, 𝒫.c, 𝒫.σ2, 𝒫.ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs)
+		𝒫 = DF(α, 𝒫.ξ, 𝒫.σ2, 𝒫.ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs, 𝒫.J)
 
-		c = update_c(𝒫, xs)#𝒫true.c
-		𝒫 = DF(𝒫.α, 𝒫.ξ, c, 𝒫.σ2, 𝒫.ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs)
+		ξ = update_ξ(𝒫, xs)
+		𝒫 = DF(𝒫.α, ξ, 𝒫.σ2, 𝒫.ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs, 𝒫.J)
 
 		push!(θ, parameters(𝒫))
 		push!(X, deepcopy(xs))
@@ -146,57 +197,4 @@ end
 
 
 ec(x,i) = map(u->u[i],x)
-ec1(x) = map(u->u[1],x)
-
-
-
-# function ν(x,a0,a,b)
-# 	N = length(a)
-# 	S = a0
-# 	for  n ∈ eachindex(b)
-# 		S += a[n]cos(2π*n*x) + b[n]sin(2π*n*x)
-# 	end
-# 	return S
-# end
-# ν(a0,a,b) = x -> ν(x,a0,a,b)
-#
-# x = range(-2.0, 1.0; length=100)
-# plot(x,ν(1.0,randn(6),randn(6)).(x))
-
-
-
-function ϕ(x; J=5)
-	out = [1.0]
-	for j ∈ 1:J
-		push!(out, cos(2π*j*x))
-		push!(out, sin(2π*j*x))
-	end
-	out
-end
-
-# function ϕ(x,k)
-# 	if !isinteger(k) error("k should be integer valued.") end
-# 	if k==1 return 1.0
-# 	elseif isodd(k) return sin(π*x*(k-1)) #sin(2π*x*0.5(k-1))
-# 	else return cos(π*x*k) #cos(2π*x*0.5k)
-# 	end
-# end
-# ϕ(k) = x-> ϕ(x,k)
-
-"""
-	update_ξ(𝒫,x)
-"""
-function update_ξ(𝒫, x)
-	n = length(x)
-	ᾱ = [𝒫.α/(1.0 + 𝒫.α* 𝒫.Δ[i]) for i ∈ eachindex(𝒫.Δ)]
-	U = ec1([(x[i] - A(i-1,𝒫) * x[i-1])/𝒫.Δ[i-1] for i ∈ 2:n])
-	V = zeros(2J+1, 2J+1)
-	v = zeros(2J+1)
-	for i ∈ 2:n
-		ϕi = ϕ(x[i-1][1,1])
-		V += ᾱ[i-1]^2 * ϕi * ϕi'
-		v += ᾱ[i-1] * U[i-1] * ϕi
-	end
-	V = PDMat(Symmetric(V))
-	rand(MvNormalCanon(v,V))
-end
+ec1(x) = ec(x,1)

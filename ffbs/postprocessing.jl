@@ -15,20 +15,17 @@ writedlm("/Users/Frank/.julia/dev/DataFusion/processing_in_r/postmean_paths.csv"
 
 
 p1=Plots.plot( ec(θ,1),label="α")
-p2=Plots.plot( ec(θ,3),label="c")
-p3=Plots.plot( ec(θ,4),label="σ2")
-p4=Plots.plot( first.(ec(θ,5)),label="ψ1")
-p5=Plots.plot( last.(ec(θ,5)),label="ψ2")
-Plots.plot(ec(θ,1)./ec(θ,4), label="α/σ2")
-p = Plots,plot(p1,p2,p3,p4,p5)
-show(p)
+p2=Plots.plot( first.(ec(θ,2)),label="ξ1")
+p3=Plots.plot( ec(θ,3),label="σ2")
+p4=Plots.plot( first.(ec(θ,4)),label="ψ1")
+p5=Plots.plot( last.(ec(θ,4)),label="ψ2")
 #png(p, "pars.png")
 
 
-df = DataFrame(iterate= repeat(1:ITER,5),
-	parameter= vcat(ec(θ,1),ec(θ,3),ec(θ,4),first.(ec(θ,5)),last.(ec(θ,5))),
-	type=repeat(["alpha","c","sigma2","psi1","psi2"],inner=ITER))
-dftrue = DataFrame(type=["alpha","c","sigma2","psi1","psi2"], parameter=[𝒫true.α, 𝒫true.c, 𝒫true.σ2, 𝒫true.ψ[1], 𝒫true.ψ[2]])
+df = DataFrame(iterate= repeat(1:ITER,6),
+	parameter= vcat(ec(θ,1),ec(θ,3),first.(ec(θ,4)),last.(ec(θ,4)),first.(ec(θ,2)),last.(ec(θ,2))),
+	type=repeat(["alpha","sigma2","psi1","psi2","xi1","xilast"],inner=ITER))
+dftrue = DataFrame(type=["alpha","sigma2","psi1","psi2","xi1","xilast"], parameter=[𝒫true.α, 𝒫true.σ2, 𝒫true.ψ[1], 𝒫true.ψ[2], 𝒫true.ξ[1], 𝒫true.ξ[end]])
 @rput df
 @rput dftrue
 @rput BI
@@ -46,3 +43,17 @@ p
 print(df %>% filter(iterate>BI) %>% group_by(type) %>%  summarize(m = mean(parameter)))
 print(dftrue %>% group_by(type) %>%  summarize(m = mean(parameter)))
 """
+
+θξ = ec(θ,2)
+pmξ = [mean(ec(θξ,i)) for i ∈ eachindex(θξ[1])]
+println(pmξ)
+pmξ1 = θ[end][2]
+pmξ2 = θ[end-1][2]
+pmξ3 = θ[100][2]
+
+tgr = collect(0:.01:1.0)
+pp  = plot(tgr, [μ(tgr[i], pmξ, 𝒫.J) for i ∈ eachindex(tgr)])
+plot!(pp, tgr, [μ(tgr[i], pmξ1, 𝒫.J) for i ∈ eachindex(tgr)])
+plot!(pp, tgr, [μ(tgr[i], pmξ2, 𝒫.J) for i ∈ eachindex(tgr)])
+plot!(pp, tgr, [μ(tgr[i], pmξ3, 𝒫.J) for i ∈ eachindex(tgr)])
+png(pp, "/Users/Frank/.julia/dev/DataFusion/figs/averageshape.png")

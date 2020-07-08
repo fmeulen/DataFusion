@@ -12,13 +12,19 @@ include("ffbs.jl")
 include("funcdefs.jl")
 
 ## Lorinc example: read true data
+α = 14.0
+J = 5
+ξ = vcat([0.5, 1.0, 2.0], zeros(nbasis(J)-3))
+σ2 = .1^2
+ψ = [.01, .01]
+
 
 dat_all = CSV.read("observations.csv")
 K = 8005;   dat = dat_all[1:K,:]
 t = vcat(0.0,dat[:time_elapsed])
 typeobs = dat[:obsscheme]
 Δ = diff(t)
-𝒫 = DF(α, ξ, c, σ2, ψ, t, Δ, typeobs)
+𝒫 = DF(α, ξ, σ2, ψ, t, Δ, typeobs, J)
 
 y = []
 for r in eachrow(dat)
@@ -34,12 +40,10 @@ for r in eachrow(dat)
 	end
 end
 
-#row 7627 is of type obs3
-r= dat[7627,:]
+#row 7627 is of type obs3  r= dat[7627,:]
 
 m0= zeros(d) ; P0=0.0*Matrix(1.0I, d, d)
 (m, P), (m⁻, P⁻) = ff(y, (m0,P0), 𝒫)
-
 pl = Plots.plot(t[2:end],first.(y))
 M = 5 # nr of ffbs pats
 Ys = [bsample(y, (m, P), (m⁻, P⁻), 𝒫) for _ ∈ 1:M]
@@ -53,12 +57,7 @@ display(pl)
 ####################################################
 
 # initialise 𝒫
-α = .8
-c = 5.0#𝒫true.c#5.0
-ξ = [6.0, 2.0]
-σ2 = 0.8
-ψ = [0.08, 0.08]
-𝒫init = DF(α,  𝒫true.ξ,  c, σ2, ψ, t, Δ, typeobs)
+𝒫init = DF(α,  ξ,  σ2, ψ, t, Δ, typeobs, J)
 
 ITER = 1000
 θ, X, 𝒫, accperc_α = mcmc(𝒫init, y; ITER = ITER , propσ=0.2)
