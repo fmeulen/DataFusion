@@ -11,7 +11,7 @@ end
 Plots.plot!(pl, 𝒫.t[2:end],postmean_paths)
 display(pl)
 #png(pl,"test1.png")
-writedlm("/Users/Frank/.julia/dev/Examples/datafusion/processing_in_r/postmean_paths.csv",postmean_paths)
+writedlm("/Users/Frank/.julia/dev/DataFusion/processing_in_r/postmean_paths.csv",postmean_paths)
 
 
 p1=Plots.plot( ec(θ,1),label="α")
@@ -38,7 +38,7 @@ p <- ggplot() +
 geom_path(data=df, mapping=aes(x=iterate,y=parameter,colour=type)) +
 geom_hline(data=dftrue, mapping = aes(yintercept=parameter,colour=type),linetype="dashed") +
  facet_wrap(~type,scales="free") + theme_light()
-png("~/.julia/dev/Examples/datafusion/figs/traceplots.png")
+png("~/.julia/dev/DataFusion/figs/traceplots.png")
 	show(p)
 dev.off()
 p

@@ -26,7 +26,7 @@ end
 # typeobs="obs3" (both meas devices 1 and 2 used)
 
 implicit = true# true
-μ(t,ξ) = pdf(Beta(ξ[1],ξ[2]),mod(t,1.0))
+μ(t,ξ) =          pdf(Beta(ξ[1],ξ[2]),mod(t,1.0))#dot(ξ, ϕ(t))
 if implicit
     A(k,𝒫) = k==0 ?  SMatrix{1,1}([1.0]) : SMatrix{1,1}( [(1.0 + 𝒫.α * 𝒫.Δ[k])^(-1)] )
     a(k,𝒫) = k==0 ?  (@SVector [0.0]) :   (@SVector [A(k,𝒫)[1,1] * 𝒫.α * 𝒫.c * μ(𝒫.t[k+1],𝒫.ξ) * 𝒫.Δ[k]   ])
@@ -150,15 +150,53 @@ ec1(x) = map(u->u[1],x)
 
 
 
-function ν(x,a0,a,b)
-	N = length(a)
-	S = a0
-	for  n ∈ eachindex(b)
-		S += a[n]cos(2π*n*x) + b[n]sin(2π*n*x)
-	end
-	return S
-end
-ν(a0,a,b) = x -> ν(x,a0,a,b)
+# function ν(x,a0,a,b)
+# 	N = length(a)
+# 	S = a0
+# 	for  n ∈ eachindex(b)
+# 		S += a[n]cos(2π*n*x) + b[n]sin(2π*n*x)
+# 	end
+# 	return S
+# end
+# ν(a0,a,b) = x -> ν(x,a0,a,b)
+#
+# x = range(-2.0, 1.0; length=100)
+# plot(x,ν(1.0,randn(6),randn(6)).(x))
 
-x = range(-2.0, 1.0; length=100)
-plot(x,ν(1.0,randn(6),randn(6)).(x))
+
+
+function ϕ(x; J=5)
+	out = [1.0]
+	for j ∈ 1:J
+		push!(out, cos(2π*j*x))
+		push!(out, sin(2π*j*x))
+	end
+	out
+end
+
+# function ϕ(x,k)
+# 	if !isinteger(k) error("k should be integer valued.") end
+# 	if k==1 return 1.0
+# 	elseif isodd(k) return sin(π*x*(k-1)) #sin(2π*x*0.5(k-1))
+# 	else return cos(π*x*k) #cos(2π*x*0.5k)
+# 	end
+# end
+# ϕ(k) = x-> ϕ(x,k)
+
+"""
+	update_ξ(𝒫,x)
+"""
+function update_ξ(𝒫, x)
+	n = length(x)
+	ᾱ = [𝒫.α/(1.0 + 𝒫.α* 𝒫.Δ[i]) for i ∈ eachindex(𝒫.Δ)]
+	U = ec1([(x[i] - A(i-1,𝒫) * x[i-1])/𝒫.Δ[i-1] for i ∈ 2:n])
+	V = zeros(2J+1, 2J+1)
+	v = zeros(2J+1)
+	for i ∈ 2:n
+		ϕi = ϕ(x[i-1][1,1])
+		V += ᾱ[i-1]^2 * ϕi * ϕi'
+		v += ᾱ[i-1] * U[i-1] * ϕi
+	end
+	V = PDMat(Symmetric(V))
+	rand(MvNormalCanon(v,V))
+end
