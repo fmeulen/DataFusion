@@ -21,8 +21,8 @@ J = 5
 
 dat_all = CSV.read("observations.csv")
 K = 8005;   dat = dat_all[1:K,:]
-t = vcat(0.0,dat[:time_elapsed])
-typeobs = dat[:obsscheme]
+t = vcat(0.0,dat[!,:time_elapsed])
+typeobs = dat[!,:obsscheme]
 Δ = diff(t)
 𝒫 = DF(α, ξ, σ2, ψ, t, Δ, typeobs, J)
 
@@ -60,7 +60,7 @@ display(pl)
 𝒫init = DF(α,  ξ,  σ2, ψ, t, Δ, typeobs, J)
 
 ITER = 1000
-θ, X, 𝒫, accperc_α = mcmc(𝒫init, y; ITER = ITER , propσ=0.2)
+θ, X, 𝒫, accperc_α = mcmc(𝒫init, y; ITER = ITER , propσ=0.1)
 
 𝒫true = 𝒫init # simply unknown here
 include("postprocessing.jl")

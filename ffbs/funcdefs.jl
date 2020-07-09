@@ -1,3 +1,7 @@
+# Model: d X_t = - α (X_t - μ(t)) d t + σ d W_t
+# μ(t) = ∑ᵢ ξᵢ * ϕᵢ(t)
+# extrinsic noise with variances governed by ψ
+
 struct DF
     α::Float64  # mean reversion par
     ξ::Vector{Float64}  #  pars in periodic drift function
@@ -25,7 +29,7 @@ end
 # We assume typeobs="obs1" (only meas device 1 used), typeobs="obs2" (only meas device 2 used),
 # typeobs="obs3" (both meas devices 1 and 2 used)
 
-implicit = true# true
+
 #μ(t,ξ) =          pdf(Beta(ξ[1],ξ[2]),mod(t,1.0))#
 # function ϕ(x, J)
 # 	out = [1.0]
@@ -53,6 +57,8 @@ nbasis(J) = 2^(J) # 2*J+1
 
 
 μ(t,ξ,J) = dot(ξ, ϕ(t, J))
+
+implicit = true
 if implicit
     A(k,𝒫) = k==0 ?  SMatrix{1,1}([1.0]) : SMatrix{1,1}( [(1.0 + 𝒫.α * 𝒫.Δ[k])^(-1)] )
     a(k,𝒫) = k==0 ?  (@SVector [0.0]) :   (@SVector [A(k,𝒫)[1,1] * 𝒫.α * μ(𝒫.t[k+1],𝒫.ξ, 𝒫.J) * 𝒫.Δ[k]   ])
@@ -60,8 +66,11 @@ else
     A(k,𝒫) = k==0 ?  SMatrix{1,1}([1.0]) : SMatrix{1,1}( [1.0 - 𝒫.α * 𝒫.Δ[k]] )
     a(k,𝒫) = k==0 ?  (@SVector [0.0]) :   (@SVector [𝒫.α *  μ(𝒫.t[k+1],𝒫.ξ) * 𝒫.Δ[k]   ])
 end
+
 Q(k,𝒫) = k==0 ?  SMatrix{1,1}([0.0]) :   SMatrix{1,1}( [𝒫.σ2 * 𝒫.Δ[k]] )
+
 H(k,𝒫) =  𝒫.typeobs[k]=="obs3" ? SMatrix{2,1}([1.0 1.0]) : SMatrix{1,1}([1.0])
+
 function R(k,𝒫)
     if   𝒫.typeobs[k]=="obs1"
         return  SMatrix{1,1}([𝒫.ψ[1]])
@@ -103,7 +112,7 @@ function SS(𝒫, x)
 	S
 end
 
-function update_σ2(𝒫, x; Aσ=.01, Bσ=0.01)
+function update_σ2(𝒫, x; Aσ=10.0, Bσ=0.01)
 	m = length(x)-1
 	S = SS(𝒫, x)
 	rand(InverseGamma(0.5m+ Aσ, 0.5S + Bσ))
@@ -128,9 +137,9 @@ end
 # 	rand(Normal(S1/S2, 1/√S2))
 # end
 
-prior_α = Exponential(5.0)
 
-function update_α(𝒫, x, acc ; propσ=0.1)
+
+function update_α(𝒫, x, acc ; propσ=0.1, prior_α = Exponential(5.0))
 	α = 𝒫.α
 	αᵒ = α * exp(propσ*randn())
 	𝒫ᵒ = DF(αᵒ, 𝒫.ξ, 𝒫.σ2, 𝒫.ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs, 𝒫.J)
@@ -165,7 +174,7 @@ function update_ξ(𝒫, x)
 end
 
 
-function mcmc(𝒫, y; ITER = 1000, propσ=0.2)
+function mcmc(𝒫, y; ITER = 1000, propσ=0.2, print_skip=100)
 	m0= zeros(d) ; P0=0.0*Matrix(1.0I, d, d)
 	𝒢 = grouping(𝒫, y)
 	θ = [parameters(𝒫)]
@@ -173,7 +182,7 @@ function mcmc(𝒫, y; ITER = 1000, propσ=0.2)
 	acc = 0
 	for it ∈ 2:ITER
 
-		if mod(it,50)==0 println("iteration $it") end
+		if mod(it,print_skip)==0 println("iteration $it") end
 		(m, P), (m⁻, P⁻) = ff(y, (m0,P0), 𝒫)
 		xs = bsample(y, (m, P), (m⁻, P⁻), 𝒫)
 

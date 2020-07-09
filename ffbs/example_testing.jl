@@ -14,13 +14,13 @@ include("funcdefs.jl")
 
 
 
-α = 14.0
-J = 7
-ξ = vcat([0.5, 1.0, 2.0], zeros(nbasis(J)-3))
+α = 10.0
+J = 5
+ξ = vcat([0.2, 1.0, 0.0], zeros(nbasis(J)-3))
 σ2 = .1^2
 ψ = [.01, .01]
 
-N = 30
+N = 150
 Δ = rand(Uniform(0.1,0.15),N)
 t = vcat(0.0,cumsum(Δ))
 typeobs = vcat(fill("obs1",N-20), fill("obs3",10),fill("obs2",10))
@@ -58,7 +58,7 @@ Plots.plot!(pl,t[2:end],ec1(m))
 ψ = [0.08, 0.08]
 𝒫init = DF(α,  ξ,  σ2, ψ, t, Δ, typeobs, J)
 
-ITER = 3500
-θ, X, 𝒫, accperc_α = mcmc(𝒫init, y; ITER = ITER , propσ=0.2)
+ITER = 5000
+θ, X, 𝒫, accperc_α = mcmc(𝒫init, y; ITER = ITER , propσ=0.1)
 
 include("postprocessing.jl")

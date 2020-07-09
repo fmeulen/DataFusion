@@ -1,17 +1,67 @@
 using DelimitedFiles
 
 BI = div(ITER,2)
+
 postmean_paths = ec1([mean(map(x->x[i],X[BI:ITER-1])) for i in eachindex(X[1])])
-
-
-pl = Plots.scatter(𝒫.t[2:end],first.(y), markersize=3)
-for k ∈ eachindex(X[end-10:end])
-    Plots.plot!(pl,𝒫.t[2:end],ec1(X[k]),label="")
-end
-Plots.plot!(pl, 𝒫.t[2:end],postmean_paths)
-display(pl)
-#png(pl,"test1.png")
 writedlm("/Users/Frank/.julia/dev/DataFusion/processing_in_r/postmean_paths.csv",postmean_paths)
+
+θξ = ec(θ,2)
+pmξ = [mean(ec(θξ,i)) for i ∈ eachindex(θξ[1])]
+tgr = collect(0:.001:1.0)
+dfmupost = DataFrame(t=tgr, y=[μ(tgr[i], pmξ, 𝒫.J) for i ∈ eachindex(tgr)])
+
+
+df = DataFrame(iterate= repeat(1:ITER,6),
+	parameter= vcat(ec(θ,1),ec(θ,3),first.(ec(θ,4)),last.(ec(θ,4)),first.(ec(θ,2)),last.(ec(θ,2))),
+	type=repeat(["alpha","sigma2","psi1","psi2","xi1","xilast"],inner=ITER))
+dftrue = DataFrame(type=["alpha","sigma2","psi1","psi2","xi1","xilast"], parameter=[𝒫true.α, 𝒫true.σ2, 𝒫true.ψ[1], 𝒫true.ψ[2], 𝒫true.ξ[1], 𝒫true.ξ[end]])
+dfpath = DataFrame(t=t[2:end], postmean=postmean_paths, y=ec1(y))
+@rput df
+@rput dftrue
+@rput BI
+@rput dfpath
+@rput dfmupost
+R"""
+library(tidyverse)
+p <- ggplot() +
+geom_path(data=df, mapping=aes(x=iterate,y=parameter,colour=type)) +
+geom_hline(data=dftrue, mapping = aes(yintercept=parameter,colour=type),linetype="dashed") +
+ facet_wrap(~type,scales="free") + theme_light() + theme(legend.position='none')
+pdf("~/.julia/dev/DataFusion/figs/traceplots.pdf",width=7,height=4)
+	show(p)
+dev.off()
+p
+
+ppath <- dfpath %>% ggplot() + geom_path(aes(x=t,y=postmean)) +
+geom_point(aes(x=t,y=y),colour='blue',size=0.4,alpha=0.8)+
+ ylab("concentration") + xlab("time elapased") + theme_light()
+pdf("~/.julia/dev/DataFusion/figs/posterior_path.pdf",width=7,height=4)
+	show(ppath)
+dev.off()
+
+pshape <- dfmupost %>% ggplot(aes(x=t,y=y)) + geom_path()+ theme_light()
+pdf("~/.julia/dev/DataFusion/figs/mupost.pdf",width=7,height=4)
+	show(pshape)
+dev.off()
+
+
+print(df %>% filter(iterate>BI) %>% group_by(type) %>%  summarize(m = mean(parameter)))
+print(dftrue %>% group_by(type) %>%  summarize(m = mean(parameter)))
+"""
+
+# informal jl plotting
+
+if false
+	pl = Plots.scatter(𝒫.t[2:end],first.(y), markersize=3)
+	for k ∈ eachindex(X[end-10:end])
+	    Plots.plot!(pl,𝒫.t[2:end],ec1(X[k]),label="")
+	end
+	Plots.plot!(pl, 𝒫.t[2:end],postmean_paths)
+	display(pl)
+	#png(pl,"test1.png")
+end
+
+
 
 
 p1=Plots.plot( ec(θ,1),label="α")
@@ -19,41 +69,24 @@ p2=Plots.plot( first.(ec(θ,2)),label="ξ1")
 p3=Plots.plot( ec(θ,3),label="σ2")
 p4=Plots.plot( first.(ec(θ,4)),label="ψ1")
 p5=Plots.plot( last.(ec(θ,4)),label="ψ2")
-#png(p, "pars.png")
+p6=Plots.plot( ec(θ,1)./ec(θ,3),label="α/σ2")
+println(𝒫true.α/𝒫true.σ2)
 
 
-df = DataFrame(iterate= repeat(1:ITER,6),
-	parameter= vcat(ec(θ,1),ec(θ,3),first.(ec(θ,4)),last.(ec(θ,4)),first.(ec(θ,2)),last.(ec(θ,2))),
-	type=repeat(["alpha","sigma2","psi1","psi2","xi1","xilast"],inner=ITER))
-dftrue = DataFrame(type=["alpha","sigma2","psi1","psi2","xi1","xilast"], parameter=[𝒫true.α, 𝒫true.σ2, 𝒫true.ψ[1], 𝒫true.ψ[2], 𝒫true.ξ[1], 𝒫true.ξ[end]])
-@rput df
-@rput dftrue
-@rput BI
-R"""
-library(tidyverse)
-p <- ggplot() +
-geom_path(data=df, mapping=aes(x=iterate,y=parameter,colour=type)) +
-geom_hline(data=dftrue, mapping = aes(yintercept=parameter,colour=type),linetype="dashed") +
- facet_wrap(~type,scales="free") + theme_light()
-png("~/.julia/dev/DataFusion/figs/traceplots.png")
-	show(p)
-dev.off()
-p
 
-print(df %>% filter(iterate>BI) %>% group_by(type) %>%  summarize(m = mean(parameter)))
-print(dftrue %>% group_by(type) %>%  summarize(m = mean(parameter)))
-"""
 
-θξ = ec(θ,2)
-pmξ = [mean(ec(θξ,i)) for i ∈ eachindex(θξ[1])]
-println(pmξ)
-pmξ1 = θ[end][2]
-pmξ2 = θ[end-1][2]
-pmξ3 = θ[100][2]
 
-tgr = collect(0:.01:1.0)
-pp  = plot(tgr, [μ(tgr[i], pmξ, 𝒫.J) for i ∈ eachindex(tgr)])
-plot!(pp, tgr, [μ(tgr[i], pmξ1, 𝒫.J) for i ∈ eachindex(tgr)])
-plot!(pp, tgr, [μ(tgr[i], pmξ2, 𝒫.J) for i ∈ eachindex(tgr)])
-plot!(pp, tgr, [μ(tgr[i], pmξ3, 𝒫.J) for i ∈ eachindex(tgr)])
-png(pp, "/Users/Frank/.julia/dev/DataFusion/figs/averageshape.png")
+
+#
+# function quadspline(x)
+# 	x = 3.0x
+# 	if 0.0<= x<= 1.0
+# 		return 0.5x^2
+# 	elseif 1.0 <= x <= 2.0
+# 		return 0.75-(x-1.5)^2
+# 	elseif 2.0 <= x <= 3.0
+# 		return 0.5(3.0-x)^2
+# 	else
+# 		return 0.0
+# 	end
+# end
