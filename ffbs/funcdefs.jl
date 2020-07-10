@@ -40,13 +40,31 @@ end
 # 	out
 # end
 
-ϕ0(x) = 0<x<1 ? 2x*(x<0.5) + 2(1-x)*(x>=0.5) : 0.0
+
+#ϕ0(x) = 0<x<1 ? 2x*(x<0.5) + 2(1-x)*(x>=0.5) : 0.0
+
+function ϕ0(x)
+	x = 3.0x
+	if 0.0<= x<= 1.0
+		return 0.5x^2
+	elseif 1.0 <= x <= 2.0
+		return 0.75-(x-1.5)^2
+	elseif 2.0 <= x <= 3.0
+		return 0.5(3.0-x)^2
+	else
+		return 0.0
+	end
+end
+
+
+
 
 function ϕ(x, J)
 	x = mod(x, 1.0)
 	out = [1.0]
 	for j ∈ 1:J
 		for k ∈ 0:2^(j-1)-1
+			#push!(out, ϕ0(2^(j-1)*x-k)/j)
 			push!(out, ϕ0(2^(j-1)*x-k)/j)
 		end
 	end
@@ -112,17 +130,17 @@ function SS(𝒫, x)
 	S
 end
 
-function update_σ2(𝒫, x; Aσ=10.0, Bσ=0.01)
+function update_σ2(𝒫, x, Aσ, Bσ)
 	m = length(x)-1
 	S = SS(𝒫, x)
 	rand(InverseGamma(0.5m+ Aσ, 0.5S + Bσ))
 end
 
-function update_ψ(𝒫::DF, 𝒢::ObsGroup, x; Aσ=0.01, Bσ=0.01)
+function update_ψ(𝒫::DF, 𝒢::ObsGroup, x; Aψ=0.01, Bψ=0.01)
 	S1 = norm(ec1(𝒢.y1-x[𝒢.ind1]))^2
 	S2 = norm(ec1(𝒢.y2-x[𝒢.ind2]))^2
-	ψ1 = rand(InverseGamma(Aσ + 0.5length(𝒢.y1), Bσ + 0.5S1 ))
-	ψ2 = rand(InverseGamma(Aσ + 0.5length(𝒢.y2), Bσ + 0.5S2 ))
+	ψ1 = rand(InverseGamma(Aψ + 0.5length(𝒢.y1), Bψ + 0.5S1 ))
+	ψ2 = rand(InverseGamma(Aψ + 0.5length(𝒢.y2), Bψ + 0.5S2 ))
 	return [ψ1, ψ2]
 end
 
@@ -139,7 +157,7 @@ end
 
 
 
-function update_α(𝒫, x, acc ; propσ=0.1, prior_α = Exponential(5.0))
+function update_α(𝒫, x, acc, prior_α ; propσ=0.1)
 	α = 𝒫.α
 	αᵒ = α * exp(propσ*randn())
 	𝒫ᵒ = DF(αᵒ, 𝒫.ξ, 𝒫.σ2, 𝒫.ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs, 𝒫.J)
@@ -174,8 +192,12 @@ function update_ξ(𝒫, x)
 end
 
 
-function mcmc(𝒫, y; ITER = 1000, propσ=0.2, print_skip=100)
-	m0= zeros(d) ; P0=0.0*Matrix(1.0I, d, d)
+function mcmc(𝒫, y; ITER = 1000, propσ=0.2, print_skip=100,
+					prior_α = Exponential(10.0), Aσ=5.0, Bσ=0.1)
+	m0= zeros(d) ;
+
+	m0 = [mean(ec1(y))]
+	P0 = 0.1*Matrix(1.0I, d, d)
 	𝒢 = grouping(𝒫, y)
 	θ = [parameters(𝒫)]
 	X = []
@@ -187,10 +209,10 @@ function mcmc(𝒫, y; ITER = 1000, propσ=0.2, print_skip=100)
 		xs = bsample(y, (m, P), (m⁻, P⁻), 𝒫)
 
 		ψ = update_ψ(𝒫, 𝒢, xs)
-		σ2 = update_σ2(𝒫, xs)
+		σ2 = update_σ2(𝒫, xs, Aσ, Bσ)
 		𝒫 = DF(𝒫.α, 𝒫.ξ,  σ2, ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs, 𝒫.J)
 
-		α, acc = update_α(𝒫, xs, acc; propσ=propσ)
+		α, acc = update_α(𝒫, xs, acc, prior_α; propσ=propσ)
 		𝒫 = DF(α, 𝒫.ξ, 𝒫.σ2, 𝒫.ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs, 𝒫.J)
 
 		ξ = update_ξ(𝒫, xs)

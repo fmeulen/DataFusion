@@ -59,7 +59,7 @@ display(pl)
 # initialise 𝒫
 𝒫init = DF(α,  ξ,  σ2, ψ, t, Δ, typeobs, J)
 
-ITER = 1000
+ITER = 1500
 θ, X, 𝒫, accperc_α = mcmc(𝒫init, y; ITER = ITER , propσ=0.1)
 
 𝒫true = 𝒫init # simply unknown here

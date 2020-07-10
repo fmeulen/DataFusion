@@ -62,19 +62,25 @@ pl2
 dev.off()
 
 # first 10 years
-pl2a <- d %>% filter(time_elapsed<10) %>% ggplot(aes(x=time_elapsed, y=y,colour=meastype)) + 
-  geom_point(size=0.9,alpha=0.9) +
+pl2a <- d %>% filter(time_elapsed<=10) %>% ggplot(aes(x=time_elapsed, y=y,colour=meastype)) + 
+  geom_point() +
  ylab("concentration") + 
-  geom_path(mapping=aes(x=time_elapsed,y=postmean),colour='black',size=0.9,alpha=0.8)+
-  geom_vline(xintercept=seq(0,10,by=1),col='grey')
+  geom_line(mapping=aes(x=time_elapsed,y=postmean),colour='black',size=0.6,alpha=0.8) +
+  geom_vline(xintercept=seq(0,10,by=1),col='grey')+theme(legend.position='bottom')
 
-pl2a1 <- d %>% filter(time_elapsed<10) %>% ggplot(aes(x=t1, y=y,colour=meastype)) + 
-  geom_point(size=0.9,alpha=0.9) +
-  facet_wrap(~meastype,ncol=1,scales='free') + ylab("concentration") + 
-  geom_point(mapping=aes(x=t1,y=postmean),colour='black',size=0.9,alpha=0.8)
-
+pdf("~/.julia/dev/DataFusion/figs/vis_data_fitstart.pdf",width=7,height=4)
 pl2a
-pl2a1
+dev.off()
+
+pl2b <- d %>% filter(time_elapsed>35) %>% ggplot(aes(x=time_elapsed, y=y,colour=meastype)) + 
+  geom_point() +
+  ylab("concentration") + 
+  geom_line(mapping=aes(x=time_elapsed,y=postmean),colour='black',size=0.6,alpha=0.8) +
+  geom_vline(xintercept=seq(35,43,by=1),col='grey')+theme(legend.position='bottom')
+
+pdf("~/.julia/dev/DataFusion/figs/vis_data_fitend.pdf",width=7,height=4)
+pl2b
+dev.off()
 
 
 

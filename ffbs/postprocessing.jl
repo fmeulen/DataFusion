@@ -5,7 +5,7 @@ BI = div(ITER,2)
 postmean_paths = ec1([mean(map(x->x[i],X[BI:ITER-1])) for i in eachindex(X[1])])
 writedlm("/Users/Frank/.julia/dev/DataFusion/processing_in_r/postmean_paths.csv",postmean_paths)
 
-θξ = ec(θ,2)
+θξ = ec(θ,2)[BI:ITER]
 pmξ = [mean(ec(θξ,i)) for i ∈ eachindex(θξ[1])]
 tgr = collect(0:.001:1.0)
 dfmupost = DataFrame(t=tgr, y=[μ(tgr[i], pmξ, 𝒫.J) for i ∈ eachindex(tgr)])
@@ -32,8 +32,9 @@ pdf("~/.julia/dev/DataFusion/figs/traceplots.pdf",width=7,height=4)
 dev.off()
 p
 
-ppath <- dfpath %>% ggplot() + geom_path(aes(x=t,y=postmean)) +
-geom_point(aes(x=t,y=y),colour='blue',size=0.4,alpha=0.8)+
+ppath <- dfpath %>% ggplot() +
+geom_point(aes(x=t,y=y),colour='blue',size=0.3,alpha=0.6)+
+geom_path(aes(x=t,y=postmean),size=0.3) +
  ylab("concentration") + xlab("time elapased") + theme_light()
 pdf("~/.julia/dev/DataFusion/figs/posterior_path.pdf",width=7,height=4)
 	show(ppath)
@@ -78,15 +79,3 @@ println(𝒫true.α/𝒫true.σ2)
 
 
 #
-# function quadspline(x)
-# 	x = 3.0x
-# 	if 0.0<= x<= 1.0
-# 		return 0.5x^2
-# 	elseif 1.0 <= x <= 2.0
-# 		return 0.75-(x-1.5)^2
-# 	elseif 2.0 <= x <= 3.0
-# 		return 0.5(3.0-x)^2
-# 	else
-# 		return 0.0
-# 	end
-# end

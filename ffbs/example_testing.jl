@@ -16,7 +16,7 @@ include("funcdefs.jl")
 
 α = 10.0
 J = 5
-ξ = vcat([0.2, 1.0, 0.0], zeros(nbasis(J)-3))
+ξ = vcat([0.5, 1.0, 0.0], zeros(nbasis(J)-3))
 σ2 = .1^2
 ψ = [.01, .01]
 
@@ -58,7 +58,7 @@ Plots.plot!(pl,t[2:end],ec1(m))
 ψ = [0.08, 0.08]
 𝒫init = DF(α,  ξ,  σ2, ψ, t, Δ, typeobs, J)
 
-ITER = 5000
+ITER = 2000
 θ, X, 𝒫, accperc_α = mcmc(𝒫init, y; ITER = ITER , propσ=0.1)
 
 include("postprocessing.jl")
