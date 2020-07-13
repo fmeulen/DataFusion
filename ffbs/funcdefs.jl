@@ -90,8 +90,8 @@ Q(k,𝒫) = k==0 ?  SMatrix{1,1}([0.0]) :   SMatrix{1,1}( [𝒫.σ2 * 𝒫.Δ[k]
 H(k,𝒫) =  𝒫.typeobs[k]=="obs3" ? SMatrix{2,1}([1.0 1.0]) : SMatrix{1,1}([1.0])
 
 function R(k,𝒫)
-    if   𝒫.typeobs[k]=="obs1"
-        return  SMatrix{1,1}([𝒫.ψ[1]])
+	if   𝒫.typeobs[k]=="obs1"
+    	return  SMatrix{1,1}([𝒫.ψ[1]])
     elseif    𝒫.typeobs[k]=="obs2"
         return  SMatrix{1,1}([𝒫.ψ[2]])
     else

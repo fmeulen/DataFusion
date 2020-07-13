@@ -6,6 +6,7 @@ using Distributions
 using StaticArrays
 using CSV
 using RCall
+using PDMats
 
 cd(@__DIR__)
 include("ffbs.jl")
@@ -42,6 +43,7 @@ end
 
 #row 7627 is of type obs3  r= dat[7627,:]
 
+d = 1
 m0= zeros(d) ; P0=0.0*Matrix(1.0I, d, d)
 (m, P), (m⁻, P⁻) = ff(y, (m0,P0), 𝒫)
 pl = Plots.plot(t[2:end],first.(y))
@@ -59,7 +61,10 @@ display(pl)
 # initialise 𝒫
 𝒫init = DF(α,  ξ,  σ2, ψ, t, Δ, typeobs, J)
 
-ITER = 1500
+
+# apriori expect water measurement to be more accurate, i.e. ψ1 smaller than ψ2
+
+ITER = 1000
 θ, X, 𝒫, accperc_α = mcmc(𝒫init, y; ITER = ITER , propσ=0.1)
 
 𝒫true = 𝒫init # simply unknown here
