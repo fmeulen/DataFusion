@@ -18,13 +18,19 @@ include("funcdefs.jl")
 J = 5
 ξ = vcat([0.5, 1.0, 0.0], zeros(nbasis(J)-3))
 σ2 = .1^2
-ψ = [.01, .01]
+ψ = [.01, .01] # first el should be <1
+η = 1.0
 
 N = 150
 Δ = rand(Uniform(0.1,0.15),N)
 t = vcat(0.0,cumsum(Δ))
 typeobs = vcat(fill("obs1",N-20), fill("obs3",10),fill("obs2",10))
-𝒫true = DF(α,  ξ,  σ2, ψ, t, Δ, typeobs,J)
+𝒫true = DF(α,  ξ,  σ2, ψ, t, Δ, typeobs,J, η)
+
+trf(x) = x # no transform
+invtrf(x) = x
+
+
 
 d = size(A(1,𝒫true))[1]
 x0 = zeros(d)
@@ -37,6 +43,7 @@ for k in 1:N
     yk =  rand(Gaussian( H(k,𝒫true)*xk[1], R(k,𝒫true)))
     push!(y,SVector(yk))
 end
+
 
 pl = Plots.plot(t[2:end],ec1(y))
 m0= zeros(d) ; P0=0.0*Matrix(1.0I, d, d)
@@ -55,10 +62,10 @@ Plots.plot!(pl,t[2:end],ec1(m))
 α = 5.8
 ξ = vcat([0.5, 0.0, 1.0], rand(nbasis(J)-3))
 σ2 = 0.8
-ψ = [0.08, 0.08]
-𝒫init = DF(α,  ξ,  σ2, ψ, t, Δ, typeobs, J)
+ψ = [0.08, 0.8]
+𝒫init = DF(α,  ξ,  σ2, ψ, t, Δ, typeobs, J, η)
 
 ITER = 2000
-θ, X, 𝒫, accperc_α = mcmc(𝒫init, y; ITER = ITER , propσ=0.1)
+θ, X, 𝒫, accperc_α = mcmc(𝒫init, y; ITER = ITER ,  propσ_α=0.1, propσ_ψ=0.3)
 
 include("postprocessing.jl")
