@@ -1,6 +1,7 @@
 using DataFrames
-using Kalman, GaussianDistributions, LinearAlgebra
-using GaussianDistributions: ⊕
+#using Kalman
+GaussianDistributions, LinearAlgebra
+#using GaussianDistributions: ⊕
 using Plots
 using Distributions
 using StaticArrays
@@ -20,7 +21,7 @@ J = 5
 ψ = [.01, .01]
 
 
-dat_all = CSV.read("observations.csv")
+dat_all = CSV.read("../../csv/observations.csv")
 K = 8005;   dat = dat_all[1:K,:]
 t = vcat(0.0,dat[!,:time_elapsed])
 typeobs = dat[!,:obsscheme]

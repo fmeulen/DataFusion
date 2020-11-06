@@ -1,9 +1,9 @@
-using DelimitedFiles
+
 
 BI = div(ITER,2)
 
 postmean_paths = ec1([mean(map(x->x[i],X[BI:ITER-1])) for i in eachindex(X[1])])
-writedlm("/Users/Frank/.julia/dev/DataFusion/processing_in_r/postmean_paths.csv",postmean_paths)
+writedlm("../../csv/postmean_paths.csv", postmean_paths)
 
 θξ = ec(θ,2)[BI:ITER]
 pmξ = [mean(ec(θξ,i)) for i ∈ eachindex(θξ[1])]
@@ -72,10 +72,3 @@ p4=Plots.plot( first.(ec(θ,4)),label="ψ1")
 p5=Plots.plot( last.(ec(θ,4)),label="ψ2")
 p6=Plots.plot( ec(θ,1)./ec(θ,3),label="α/σ2")
 println(𝒫true.α/𝒫true.σ2)
-
-
-
-
-
-
-#
