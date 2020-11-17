@@ -33,13 +33,14 @@ J = 5
 
 # apriori expect water measurement to be more accurate, i.e. ψ1 smaller than ψ2
 
-ITER = 1000
+ITER = 100
 θ, X, 𝒫, accperc_α, postmean_paths = mcmc(𝒫init, logconc; ITER = ITER)
 
 ## postprocessing
 
 writedlm("../../csv/postmean_paths.csv", postmean_paths)
 
+using Plots
 ### traceplots
 # parameters(𝒫::DF) = (𝒫.α, 𝒫.ξ, 𝒫.σ2, 𝒫.ψ̄, 𝒫.ψ, 𝒫.ρ)
 p1 = plot( ec(map(x->x[1],θ),1),label="α")
@@ -58,12 +59,6 @@ pXhalf = plot(ec1(X[div(ITER,2)]))
 pXend = plot(ec1(X[ITER-1]))
 plot(pX1, pXhalf, pXend, layout=@layout [a;b;c])
 plot(logconc)
-
-
-
-using Plots
-p = plot(ec1(X[1]))
-plot!(p, ec1(X[ITER-1]))
 
 BI = div(ITER,2)
 using RCall
