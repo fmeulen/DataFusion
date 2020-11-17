@@ -1,7 +1,6 @@
 using DataFrames
-#using Kalman
-GaussianDistributions, LinearAlgebra
-#using GaussianDistributions: ⊕
+using Kalman, GaussianDistributions, LinearAlgebra
+using GaussianDistributions: ⊕
 using Plots
 using Distributions
 using StaticArrays
@@ -18,27 +17,31 @@ include("funcdefs.jl")
 J = 5
 ξ = vcat([0.5, 1.0, 2.0], zeros(nbasis(J)-3))
 σ2 = .1^2
-ψ = [.01, .01]
+ψ = [.01, .01] # first el should be <1
+η = 658/8005
 
 
-dat_all = CSV.read("../../csv/observations.csv")
+dat_all = CSV.read("observations.csv")
 K = 8005;   dat = dat_all[1:K,:]
 t = vcat(0.0,dat[!,:time_elapsed])
 typeobs = dat[!,:obsscheme]
 Δ = diff(t)
-𝒫 = DF(α, ξ, σ2, ψ, t, Δ, typeobs, J)
+𝒫 = DF(α, ξ, σ2, ψ, t, Δ, typeobs, J, η)
+
+trf(x) = log(x) # apply model to the log of the data
+invtrf(x) = exp(x)
 
 y = []
 for r in eachrow(dat)
 	if r[:obsscheme]=="obs1"
 		u = tryparse(Float64,r[:chl_water])
-		push!(y,SVector(u))
+		push!(y,SVector(trf(u)))
 	elseif r[:obsscheme]=="obs2"
 		u = tryparse(Float64,r[:chl])
-		push!(y,SVector(u))
+		push!(y,SVector(trf(u)))
 	elseif r[:obsscheme]=="obs3"
 		u = tryparse.(Float64,[r[:chl_water], r[:chl]])
-		push!(y,SVector{2}(u))
+		push!(y,SVector{2}(trf.(u)))
 	end
 end
 
@@ -60,13 +63,12 @@ display(pl)
 ####################################################
 
 # initialise 𝒫
-𝒫init = DF(α,  ξ,  σ2, ψ, t, Δ, typeobs, J)
-
+𝒫init = DF(α,  ξ,  σ2, ψ, t, Δ, typeobs, J, η)
 
 # apriori expect water measurement to be more accurate, i.e. ψ1 smaller than ψ2
 
 ITER = 1000
-θ, X, 𝒫, accperc_α = mcmc(𝒫init, y; ITER = ITER , propσ=0.1)
+θ, X, 𝒫, accperc_α = mcmc(𝒫init, y; ITER = ITER , propσ_α=0.1, propσ_ψ=0.2)
 
 𝒫true = 𝒫init # simply unknown here
 include("postprocessing.jl")
