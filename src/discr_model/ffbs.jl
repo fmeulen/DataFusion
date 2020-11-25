@@ -15,51 +15,44 @@ y: data
 
 Returns: (m, P), (m⁻, P⁻), where (m,P) are (mean,covmatrix) filtering distribution
 """
-function ff(y, (m0,P0), 𝒫) # forward filter
-    m, P = [], []
-    m⁻, P⁻ = [], []
+function ff(y, (m0,P0), 𝒫)
     N = length(y)
-    # Forw filtering
+    Tm = typeof(m0)
+    TP = typeof(P0)
+    m, P = Tm[], TP[]
+    m⁻, P⁻ = Tm[], TP[]
+    N = length(y)
+    mprev = m0; Pprev = P0
     for k ∈ 1:N
-        if k==1
-            push!(m⁻, A(k-1,𝒫) * m0 + a(k-1,𝒫))
-            push!(P⁻, A(k-1,𝒫) * P0 * A(k-1,𝒫)' + Q(k-1,𝒫))
-        else
-            push!(m⁻, A(k-1,𝒫) * m[k-1] + a(k-1,𝒫))
-            push!(P⁻, A(k-1,𝒫) * P[k-1] * A(k-1,𝒫)' + Q(k-1,𝒫))
-        end
-        v = y[k] - H(k,𝒫) * m⁻[k]
+        push!(m⁻, A(k-1,𝒫) * mprev + a(k-1,𝒫))
+        push!(P⁻, A(k-1,𝒫) * Pprev * A(k-1,𝒫)' + Q(k-1,𝒫))
+        v = y[k] .- (H(k,𝒫) * m⁻[k])
         S = H(k,𝒫) * P⁻[k] * H(k,𝒫)' + R(k,𝒫)
         K = (P⁻[k] * H(k,𝒫)')/S
-        push!(m, m⁻[k] + K * v)
-        push!(P, P⁻[k] - K * S * K')
+        mprev = m⁻[k] + K * v
+        Pprev = P⁻[k] - K * S * K'
+        push!(m, mprev)
+        push!(P, Pprev)
     end
     (m, P), (m⁻, P⁻)
 end
 
 
-"""
-    bsmooth(y, (m0,P0), (m, P), (m⁻, P⁻)) # backw smoothing
-
-Backward Kalman smoothing
-y: data
-(m, P): filtered mean and covariances
-(m⁻,P⁻): forward predicted mean and covariances (compute in forward filtering)
-
-Returns: (mˢ, Pˢ) which are (mean,covmatrix) smoothing distributions
-"""
-function bsmooth(y, (m, P), (m⁻, P⁻),𝒫) # backw smoothing
-    # FIXME: the additive drift term a(k) should maybe also come in here
-    N = length(m)
-    mˢ = [m[N]]
-    Pˢ = [P[N]]
-    for k ∈ N-1:-1:1
-        G = (P[k] * A(k,𝒫)')/P⁻[k+1]
-        pushfirst!(mˢ, m[k] + G * (first(mˢ) - m⁻[k+1]))
-        pushfirst!(Pˢ, P[k] + G * (first(Pˢ) - P⁻[k+1]) * G')
+function ff!(y, (m0,P0), (m, P), (m⁻, P⁻), 𝒫)
+    N = length(y)
+    mprev = m0; Pprev = P0
+    for k ∈ 1:N
+        m⁻[k] =  A(k-1,𝒫) * mprev + a(k-1,𝒫)
+        P⁻[k] = A(k-1,𝒫) * Pprev * A(k-1,𝒫)' + Q(k-1,𝒫)
+        v = y[k] .- (H(k,𝒫) * m⁻[k])
+        S = H(k,𝒫) * P⁻[k] * H(k,𝒫)' + R(k,𝒫)
+        K = (P⁻[k] * H(k,𝒫)')/S
+        m[k] = mprev = m⁻[k] + K * v
+        P[k] = Pprev = P⁻[k] - K * S * K'
     end
-    (mˢ, Pˢ)
+    nothing
 end
+
 
 """
     bsample(y, (m, P), (m⁻, P⁻)) # backw sampling
@@ -71,15 +64,26 @@ y: data
 
 Returns: a sample path from the smoothing distribution
 """
-function bsample(y, (m, P), (m⁻, P⁻), 𝒫) # backw sampling
+function bsample((m, P), (m⁻, P⁻), 𝒫)
+    yout = zeros(length(m))
+    bsample!(yout,(m, P), (m⁻, P⁻), 𝒫)
+    yout
+end
+
+"""
+    bsample!(yout,(m, P), (m⁻, P⁻), 𝒫)
+
+Inplace version of bsample
+"""
+function bsample!(yout,(m, P), (m⁻, P⁻), 𝒫)
     # FIXME: the additive drift term a(k) should maybe also come in here
     N = length(m)
-    yout = [rand(Gaussian(m[N], Symmetric(P[N])))]
+    yout[N] = rand(Normal(m[N],sqrt(P[N])))
     for k ∈ N-1:-1:1
         G = (P[k] * A(k,𝒫)')/P⁻[k+1]
-        z = m[k] + G * (first(yout) - m⁻[k+1])
-        cv = Symmetric(P[k] - G *  P⁻[k+1] * G' )
-        pushfirst!(yout, rand(Gaussian(z,cv)))
+        z = m[k] + G * (yout[k+1] - m⁻[k+1])
+        cv = P[k] - G *  P⁻[k+1] * G'
+        yout[k] = rand(Normal(z,sqrt(cv)))
     end
-    yout
+    nothing
 end

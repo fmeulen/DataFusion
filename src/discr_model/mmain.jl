@@ -58,7 +58,7 @@ pX1 = plot(ec1(X[1]))
 pXhalf = plot(ec1(X[div(ITER,2)]))
 pXend = plot(ec1(X[ITER-1]))
 plot(pX1, pXhalf, pXend, layout=@layout [a;b;c])
-plot(logconc)
+
 
 BI = div(ITER,2)
 using RCall

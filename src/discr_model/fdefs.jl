@@ -12,10 +12,11 @@ typeobs:: vector of characters containing info on type of observation at each ti
 """
 function readdata(path)
 	dat = CSV.read(path)
+	dat = dat[1:100,:]   ### FIXME just for testing
 	t = vcat(0.0,dat[!,:time_elapsed])
 	typeobs = dat[!,:obsscheme]
 	Δ = diff(t)
-	y = []
+	y = SVector[]
 	for r in eachrow(dat)
 	    if r[:obsscheme]=="obs1"
 	        u = r[:chl_water]
@@ -148,24 +149,24 @@ nbasis(J) = 2^(J) # 2*J+1
 
 implicit = true
 if implicit
-    A(k,𝒫) = k==0 ?  SMatrix{1,1}([1.0]) : SMatrix{1,1}( [(1.0 + 𝒫.α * 𝒫.Δ[k])^(-1)] )
-    a(k,𝒫) = k==0 ?  (@SVector [0.0]) :   (@SVector [A(k,𝒫)[1,1] * 𝒫.α * μ(𝒫.t[k+1],𝒫.ξ, 𝒫.J) * 𝒫.Δ[k]   ])
+    A(k,𝒫) = k==0 ?  1.0 : (1.0 + 𝒫.α * 𝒫.Δ[k])^(-1)
+    a(k,𝒫) = k==0 ? 0.0 : A(k,𝒫) * 𝒫.α * μ(𝒫.t[k+1],𝒫.ξ, 𝒫.J) * 𝒫.Δ[k]
 else
-    A(k,𝒫) = k==0 ?  SMatrix{1,1}([1.0]) : SMatrix{1,1}( [1.0 - 𝒫.α * 𝒫.Δ[k]] )
-    a(k,𝒫) = k==0 ?  (@SVector [0.0]) :   (@SVector [𝒫.α *  μ(𝒫.t[k+1],𝒫.ξ) * 𝒫.Δ[k]   ])
+    A(k,𝒫) = k==0 ?  1.0 : 1.0 - 𝒫.α * 𝒫.Δ[k]
+    a(k,𝒫) = k==0 ?  0.0 : 𝒫.α *  μ(𝒫.t[k+1],𝒫.ξ) * 𝒫.Δ[k]
 end
 
-Q(k,𝒫) = k==0 ?  SMatrix{1,1}([0.0]) :   SMatrix{1,1}( [𝒫.σ2 * 𝒫.Δ[k]] )
+Q(k,𝒫) = k==0 ?  0.0 :   𝒫.σ2 * 𝒫.Δ[k]
 
-H(k,𝒫) =  𝒫.typeobs[k]=="obs3" ? SMatrix{2,1}([1.0 1.0]) : SMatrix{1,1}([1.0])
+H(k,𝒫) =  𝒫.typeobs[k]=="obs3" ? [1.0; 1.0] : [1.0]
 
 function R(k,𝒫)
 	if   𝒫.typeobs[k]=="obs1"
-    	return  SMatrix{1,1}([𝒫.η * 𝒫.ψ̄ * 𝒫.ψ])
+    	return  [𝒫.η * 𝒫.ψ̄ * 𝒫.ψ]
     elseif    𝒫.typeobs[k]=="obs2"
-        return  SMatrix{1,1}([𝒫.ψ])
+        return   [𝒫.ψ]
     else
-        return  SMatrix{2,2}([𝒫.η * 𝒫.ψ̄ * 𝒫.ψ 0.0; 0.0 𝒫.ψ])
+        return  [𝒫.η * 𝒫.ψ̄ * 𝒫.ψ 0.0; 0.0 𝒫.ψ]
     end
 end
 
@@ -231,7 +232,7 @@ function update_ξρ(𝒫, x, priorvarξρ)
 	Z = zeros(nb+2, nb+2)
 	v = zeros(nb+2)
 	for i ∈ 2:n
-		zi_ = push!(ϕ(𝒫.t[i], 𝒫.J), 𝒫.lrad_temp[i,:]...)
+		zi_ = vcat(ϕ(𝒫.t[i], 𝒫.J), 𝒫.lrad_temp[i,:]...)
 		zi = zi_ .* vcat( fill(ᾱ[i-1],nb), fill(1.0/sqrt(𝒫.Δ[i]),2) )          # as should
 		#zi = zi_ * ᾱ[i-1]
 		Z += zi * zi'
@@ -255,18 +256,23 @@ function mcmc(𝒫, y; ITER = 1000,
 
 	#m0= zeros(1) ;
 	d = 1
-	m0 = [mean(ec1(y))]
-	P0 = 0.1*Matrix(1.0I, d, d)
+	m0 = 0.0#[mean(ec1(y))]
+	P0 = 0.1#*Matrix(1.0I, d, d)
+	# m0 = @SMatrix [0.0]
+	# P0 = @SMatrix [1.0 0.0; 0.0 1.0]
+	#
 	𝒢 = ObsGroup(𝒫, y)
 	θ = [parameters(𝒫)]
-	X = []
+	#X = Array{SArray{Tuple{1},Float64,1,1},1}[]
 	acc = [0,0]
+
+	(m, P), (m⁻, P⁻) = ff(y, (m0,P0), 𝒫)
+	xs = bsample((m, P), (m⁻, P⁻), 𝒫)
+	X = [xs]
+
 	for it ∈ 2:ITER
 
 		if mod(it,print_skip)==0 println("iteration $it") end
-
-		(m, P), (m⁻, P⁻) = ff(y, (m0,P0), 𝒫)
-		xs = bsample(y, (m, P), (m⁻, P⁻), 𝒫)
 
 		ψ̄, ψ, acc  = update_ψ̄ψ(𝒫, 𝒢, xs, acc, prior_ψ̄, Aψ, Bψ, propσ_ψ̄)
 		σ2 = update_σ2(𝒫, xs, Aσ, Bσ)
@@ -277,6 +283,9 @@ function mcmc(𝒫, y; ITER = 1000,
 
 		ξ, ρ = update_ξρ(𝒫, xs, priorvarξρ)
 		𝒫 = DF(𝒫.α, ξ, 𝒫.σ2, 𝒫.ψ̄, 𝒫.ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs, 𝒫.J, 𝒫.η, 𝒫.lrad_temp, ρ)
+
+		ff!(y, (m0,P0), (m, P), (m⁻, P⁻), 𝒫)
+		bsample!(xs, (m, P), (m⁻, P⁻), 𝒫)
 
 		push!(θ, parameters(𝒫))
 		push!(X, deepcopy(xs))
