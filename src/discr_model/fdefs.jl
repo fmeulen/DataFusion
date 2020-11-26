@@ -12,7 +12,7 @@ typeobs:: vector of characters containing info on type of observation at each ti
 """
 function readdata(path)
 	dat = CSV.read(path)
-	dat = dat[1:100,:]   ### FIXME just for testing
+#	dat = dat[1:100,:]   ### FIXME just for testing
 	t = vcat(0.0,dat[!,:time_elapsed])
 	typeobs = dat[!,:obsscheme]
 	Δ = diff(t)
@@ -149,24 +149,24 @@ nbasis(J) = 2^(J) # 2*J+1
 
 implicit = true
 if implicit
-    A(k,𝒫) = k==0 ?  1.0 : (1.0 + 𝒫.α * 𝒫.Δ[k])^(-1)
-    a(k,𝒫) = k==0 ? 0.0 : A(k,𝒫) * 𝒫.α * μ(𝒫.t[k+1],𝒫.ξ, 𝒫.J) * 𝒫.Δ[k]
+    A(k,𝒫) = k==0 ? (@SMatrix [1.0]) : @SMatrix [(1.0 + 𝒫.α * 𝒫.Δ[k])^(-1)]
+    a(k,𝒫) = k==0 ? (@SVector [0.0]) : @SVector[ (1.0 + 𝒫.α * 𝒫.Δ[k])^(-1) * 𝒫.α * μ(𝒫.t[k+1],𝒫.ξ, 𝒫.J) * 𝒫.Δ[k]]
 else
     A(k,𝒫) = k==0 ?  1.0 : 1.0 - 𝒫.α * 𝒫.Δ[k]
     a(k,𝒫) = k==0 ?  0.0 : 𝒫.α *  μ(𝒫.t[k+1],𝒫.ξ) * 𝒫.Δ[k]
 end
 
-Q(k,𝒫) = k==0 ?  0.0 :   𝒫.σ2 * 𝒫.Δ[k]
+Q(k,𝒫) = k==0 ?  (@SMatrix [0.0]) :  @SMatrix [𝒫.σ2 * 𝒫.Δ[k]]
 
-H(k,𝒫) =  𝒫.typeobs[k]=="obs3" ? [1.0; 1.0] : [1.0]
+H(k,𝒫) =  𝒫.typeobs[k]=="obs3" ? (@SMatrix [1.0; 1.0]) : (@SMatrix [1.0])
 
 function R(k,𝒫)
 	if   𝒫.typeobs[k]=="obs1"
-    	return  [𝒫.η * 𝒫.ψ̄ * 𝒫.ψ]
+    	return @SMatrix [𝒫.η * 𝒫.ψ̄ * 𝒫.ψ]
     elseif    𝒫.typeobs[k]=="obs2"
-        return   [𝒫.ψ]
+        return @SMatrix  [𝒫.ψ]
     else
-        return  [𝒫.η * 𝒫.ψ̄ * 𝒫.ψ 0.0; 0.0 𝒫.ψ]
+        return @SMatrix  [𝒫.η * 𝒫.ψ̄ * 𝒫.ψ 0.0; 0.0 𝒫.ψ]
     end
 end
 
@@ -176,7 +176,8 @@ end
 function SS(𝒫, x)
 	S = 0.0
 	for k ∈ 2:length(x)
-		S += (x[k] - A(k-1,𝒫) * x[k-1] - a(k-1,𝒫))[1]^2/𝒫.Δ[k-1]
+		#S += (x[k] - A(k-1,𝒫) * x[k-1] - a(k-1,𝒫)).^2/𝒫.Δ[k-1]
+		S += norm(x[k] - A(k-1,𝒫) * x[k-1] - a(k-1,𝒫))^2/𝒫.Δ[k-1]
 	end
 	S
 end
@@ -224,46 +225,44 @@ end
 """
 	update_ξ(𝒫,x)
 """
-function update_ξρ(𝒫, x, priorvarξρ)
+function update_ξ(𝒫, x, priorvarξρ)
 	n = length(x)
 	ᾱ = [sqrt(𝒫.Δ[i]) * 𝒫.α / (1.0 + 𝒫.α* 𝒫.Δ[i]) for i ∈ eachindex(𝒫.Δ)]
 	U = ec1([(x[i] - A(i-1,𝒫) * x[i-1])/sqrt(𝒫.Δ[i-1]) for i ∈ 2:n])
 	nb = nbasis(𝒫.J)
-	Z = zeros(nb+2, nb+2)
-	v = zeros(nb+2)
+	Z = zeros(nb, nb)
+	v = zeros(nb)
 	for i ∈ 2:n
-		zi_ = vcat(ϕ(𝒫.t[i], 𝒫.J), 𝒫.lrad_temp[i,:]...)
-		zi = zi_ .* vcat( fill(ᾱ[i-1],nb), fill(1.0/sqrt(𝒫.Δ[i]),2) )          # as should
-		#zi = zi_ * ᾱ[i-1]
+		zi = ϕ(𝒫.t[i], 𝒫.J) * ᾱ[i-1]
 		Z += zi * zi'
 		v += U[i-1] * zi
 	end
 	P = PDMat(Symmetric(Z/𝒫.σ2 + I/priorvarξρ))
 	ν = v/𝒫.σ2
-	out = rand(MvNormalCanon(ν,P))
-	out[1:nb], out[nb+1:end]
+	rand(MvNormalCanon(ν,P))
 end
 
+"""
+	mcmc
 
+printskip: output every print_skip iteration
+saveskip: nunber of sampled paths to skip in saving to output
+"""
 function mcmc(𝒫, y; ITER = 1000,
 				propσ_α=0.2, propσ_ψ̄=0.2,
 	 			prior_α = Exponential(10.0),
 				prior_ψ̄ = Uniform(0,1),
 				Aσ=0.1, Bσ=0.1,
 				Aψ=0.1, Bψ=0.1,
-				priorvarξρ = 10.0, # prior var on ξ_i and ρ_j
-				print_skip=100)
+				priorvarξ = 10.0, # prior var on ξ_i and ρ_j
+				printskip=50,
+				saveskip=25
+				)
+	m0 = @SVector [0.0]
+	P0 = @SMatrix [10.0]
 
-	#m0= zeros(1) ;
-	d = 1
-	m0 = 0.0#[mean(ec1(y))]
-	P0 = 0.1#*Matrix(1.0I, d, d)
-	# m0 = @SMatrix [0.0]
-	# P0 = @SMatrix [1.0 0.0; 0.0 1.0]
-	#
 	𝒢 = ObsGroup(𝒫, y)
 	θ = [parameters(𝒫)]
-	#X = Array{SArray{Tuple{1},Float64,1,1},1}[]
 	acc = [0,0]
 
 	(m, P), (m⁻, P⁻) = ff(y, (m0,P0), 𝒫)
@@ -272,30 +271,33 @@ function mcmc(𝒫, y; ITER = 1000,
 
 	for it ∈ 2:ITER
 
-		if mod(it,print_skip)==0 println("iteration $it") end
+		if it % printskip == 0 println("iteration $it") end
 
 		ψ̄, ψ, acc  = update_ψ̄ψ(𝒫, 𝒢, xs, acc, prior_ψ̄, Aψ, Bψ, propσ_ψ̄)
+		𝒫 = @set 𝒫.ψ̄ = ψ̄
+		𝒫 = @set 𝒫.ψ = ψ
+
 		σ2 = update_σ2(𝒫, xs, Aσ, Bσ)
-		𝒫 = DF(𝒫.α, 𝒫.ξ,  σ2, ψ̄, ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs, 𝒫.J, 𝒫.η, 𝒫.lrad_temp, 𝒫.ρ)
+		𝒫 = @set 𝒫.σ2 = σ2
 
 		α, acc = update_α(𝒫, xs, acc, prior_α, propσ_α)
-		𝒫 = DF(α, 𝒫.ξ, 𝒫.σ2, 𝒫.ψ̄, 𝒫.ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs, 𝒫.J, 𝒫.η, 𝒫.lrad_temp, 𝒫.ρ)
+		𝒫 = @set 𝒫.α = α
 
-		ξ, ρ = update_ξρ(𝒫, xs, priorvarξρ)
-		𝒫 = DF(𝒫.α, ξ, 𝒫.σ2, 𝒫.ψ̄, 𝒫.ψ, 𝒫.t, 𝒫.Δ, 𝒫.typeobs, 𝒫.J, 𝒫.η, 𝒫.lrad_temp, ρ)
+		ξ = update_ξ(𝒫, xs, priorvarξ)
+		𝒫 = @set 𝒫.ξ = ξ
 
 		ff!(y, (m0,P0), (m, P), (m⁻, P⁻), 𝒫)
 		bsample!(xs, (m, P), (m⁻, P⁻), 𝒫)
 
 		push!(θ, parameters(𝒫))
-		push!(X, deepcopy(xs))
+		if it % saveskip == 0
+			push!(X, deepcopy(xs))
+		end
 	end
 	accperc_α = round.(100acc/(ITER-1);digits=2)
 	println("Acceptance percentage for updating α: $accperc_α%")
 
-	BI = div(ITER,2)
-	postmean_paths = ec1([mean(map(x->x[i],X[BI:ITER-1])) for i in eachindex(X[1])])
-	θ, X, 𝒫, accperc_α, postmean_paths
+	θ, X, 𝒫, accperc_α
 end
 
 

@@ -16,17 +16,17 @@ y: data
 Returns: (m, P), (m⁻, P⁻), where (m,P) are (mean,covmatrix) filtering distribution
 """
 function ff(y, (m0,P0), 𝒫)
-    N = length(y)
     Tm = typeof(m0)
     TP = typeof(P0)
     m, P = Tm[], TP[]
     m⁻, P⁻ = Tm[], TP[]
-    N = length(y)
+
     mprev = m0; Pprev = P0
-    for k ∈ 1:N
+    for k ∈ eachindex(y)
+        #println(k)
         push!(m⁻, A(k-1,𝒫) * mprev + a(k-1,𝒫))
         push!(P⁻, A(k-1,𝒫) * Pprev * A(k-1,𝒫)' + Q(k-1,𝒫))
-        v = y[k] .- (H(k,𝒫) * m⁻[k])
+        v = y[k] - (H(k,𝒫) * m⁻[k])
         S = H(k,𝒫) * P⁻[k] * H(k,𝒫)' + R(k,𝒫)
         K = (P⁻[k] * H(k,𝒫)')/S
         mprev = m⁻[k] + K * v
@@ -39,9 +39,8 @@ end
 
 
 function ff!(y, (m0,P0), (m, P), (m⁻, P⁻), 𝒫)
-    N = length(y)
     mprev = m0; Pprev = P0
-    for k ∈ 1:N
+    for k ∈ eachindex(y)
         m⁻[k] =  A(k-1,𝒫) * mprev + a(k-1,𝒫)
         P⁻[k] = A(k-1,𝒫) * Pprev * A(k-1,𝒫)' + Q(k-1,𝒫)
         v = y[k] .- (H(k,𝒫) * m⁻[k])
@@ -55,7 +54,7 @@ end
 
 
 """
-    bsample(y, (m, P), (m⁻, P⁻)) # backw sampling
+    bsample(y, (m, P), (m⁻, P⁻))
 
 Backward sampling to generate a sample path from the smoothing distribution
 y: data
@@ -65,7 +64,7 @@ y: data
 Returns: a sample path from the smoothing distribution
 """
 function bsample((m, P), (m⁻, P⁻), 𝒫)
-    yout = zeros(length(m))
+    yout = zeros(typeof(m0),length(m))
     bsample!(yout,(m, P), (m⁻, P⁻), 𝒫)
     yout
 end
@@ -78,12 +77,12 @@ Inplace version of bsample
 function bsample!(yout,(m, P), (m⁻, P⁻), 𝒫)
     # FIXME: the additive drift term a(k) should maybe also come in here
     N = length(m)
-    yout[N] = rand(Normal(m[N],sqrt(P[N])))
+    yout[N] = rand(Gaussian(m[N],P[N]))
     for k ∈ N-1:-1:1
         G = (P[k] * A(k,𝒫)')/P⁻[k+1]
         z = m[k] + G * (yout[k+1] - m⁻[k+1])
         cv = P[k] - G *  P⁻[k+1] * G'
-        yout[k] = rand(Normal(z,sqrt(cv)))
+        yout[k] = rand(Gaussian(z,cv))
     end
     nothing
 end
