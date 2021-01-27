@@ -6,9 +6,9 @@ library(lubridate)
 
 theme_set(theme_light())
 
-setwd("~/.julia/dev/DataFusion/processing_in_r")
+setwd("~/.julia/dev/DataFusion/figs")
 
-dorig <-  read_csv("daily_data.csv", 
+dorig <-  read_csv("~/.julia/dev/DataFusion/csv/daily_data.csv", 
                             col_types = cols(chl = col_double())) %>% rename(chl_water=concentration_of_chlorophyll_in_water) 
 
 d <- dorig %>% gather(chl, chl_water,key='meastype', value=y)
@@ -26,7 +26,7 @@ d <- d %>% mutate(time_elapsed = elapsed)
 pl <- d %>% ggplot(aes(x=time_elapsed, y=y,colour=meastype)) + geom_point(size=0.6,alpha=0.6) +
   facet_wrap(~meastype,ncol=1,scales='free') + ylab("concentration")
 pl
-pdf("~/.julia/dev/Examples/datafusion/figs/vis_data.pdf",width=7,height=5)
+pdf("~/.julia/dev/DataFusion/figs/vis_data.pdf",width=7,height=5)
   pl
 dev.off()
 
@@ -50,8 +50,9 @@ dorig %>% filter(obsscheme=='type3')
 # - type 2: only chl measured
 # - type 3: both measured
 
+
 # include posterior mean in figure
-pm <- read_csv("postmean_paths.csv", col_names = FALSE) 
+pm <- read_csv("~/.julia/dev/DataFusion/csv/postmean_paths.csv", col_names = FALSE) %>% mutate(X1=exp(X1))
 d <- d %>% mutate(postmean=rep(pm$X1,2)) %>%  mutate(t1 = time_elapsed %% 1) 
 pl2 <- d %>% ggplot(aes(x=time_elapsed, y=y,colour=meastype)) + geom_point(size=0.6,alpha=0.9) +
   facet_wrap(~meastype,ncol=1,scales='free') + ylab("concentration") + 

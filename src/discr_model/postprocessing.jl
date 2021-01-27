@@ -1,9 +1,4 @@
-
-
-BI = div(ITER,2)
-
-postmean_paths = ec1([mean(map(x->x[i],X[BI:ITER-1])) for i in eachindex(X[1])])
-writedlm("../../csv/postmean_paths.csv", postmean_paths)
+𝒫true = 𝒫init # simply unknown here
 
 θξ = ec(θ,2)[BI:ITER]
 pmξ = [mean(ec(θξ,i)) for i ∈ eachindex(θξ[1])]
@@ -14,8 +9,8 @@ dfmupost = DataFrame(t=tgr, y=[μ(tgr[i], pmξ, 𝒫.J) for i ∈ eachindex(tgr)
 df = DataFrame(iterate= repeat(1:ITER,6),
 	parameter= vcat(ec(θ,1),ec(θ,3),first.(ec(θ,4)),last.(ec(θ,4)),first.(ec(θ,2)),last.(ec(θ,2))),
 	type=repeat(["alpha","sigma2","psi1","psi2","xi1","xilast"],inner=ITER))
-dftrue = DataFrame(type=["alpha","sigma2","psi1","psi2","xi1","xilast"], parameter=[𝒫true.α, 𝒫true.σ2, 𝒫true.ψ[1], 𝒫true.ψ[2], 𝒫true.ξ[1], 𝒫true.ξ[end]])
-dfpath = DataFrame(t=t[2:end], postmean=postmean_paths, y=ec1(y))
+dftrue = DataFrame(type=["alpha","sigma2","psi1","psi2","xi1","xilast"], parameter=[𝒫true.α, 𝒫true.σ2, 𝒫true.ψ̄, 𝒫true.ψ, 𝒫true.ξ[1], 𝒫true.ξ[end]])
+dfpath = DataFrame(t=t[2:end], postmean=postmean_paths, y=ec1(logconc))
 @rput df
 @rput dftrue
 @rput BI
