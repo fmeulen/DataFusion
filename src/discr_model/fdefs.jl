@@ -191,14 +191,14 @@ end
 
 logtargetψ̄(ψ̄, ψ ,n ,S, η) = -0.5n * log(ψ̄) - 0.5S/(η * ψ̄ * ψ)  # needed for MH-update first element of ψ
 
-function update_ψ̄ψ(𝒫::DF, 𝒢::ObsGroup, x, acc, prior_ψ̄, Aψ, Bψ, propσ)
+function update_ψ̄ψ(𝒫::DF, 𝒢::ObsGroup, x, acc, prior_ψ̄, Aψ, Bψ, propσ_ψ̄)
 	S1 = norm(ec1(𝒢.y1-x[𝒢.ind1]))^2
 	S2 = norm(ec1(𝒢.y2-x[𝒢.ind2]))^2
 	n1 = length(𝒢.y1)
 	n2 = length(𝒢.y2)
 	ψ = rand(InverseGamma(Aψ + 0.5*(n1 + n2), Bψ + 0.5*(S1/(𝒫.η * 𝒫.ψ̄) + S2) ))
 	ψ̄ = 𝒫.ψ̄
-	ψ̄ᵒ = ψ̄/(ψ̄ + (1-ψ̄)* exp(propσ*randn()))
+	ψ̄ᵒ = ψ̄/(ψ̄ + (1-ψ̄)* exp(propσ_ψ̄ * randn()))
 	Δll = logtargetψ̄(ψ̄ᵒ,ψ,n1,S1,𝒫.η) - logtargetψ̄(ψ̄,ψ,n1,S1,𝒫.η)
 	log_jacob_term = log(ψ̄ᵒ*(1.0-ψ̄ᵒ)) - log(ψ̄*(1.0-ψ̄))
 	Υ = Δll + log_jacob_term  + logpdf(prior_ψ̄, ψ̄ᵒ) - logpdf(prior_ψ̄, ψ̄)
@@ -296,7 +296,7 @@ function mcmc(𝒫, y; ITER = 1000,
 		end
 	end
 	accperc_α = round.(100acc/(ITER-1);digits=2)
-	println("Acceptance percentage for updating α: $accperc_α%")
+	println("Acceptance percentage for updating (α, ψ̄): $accperc_α%")
 
 	θ, X, 𝒫, accperc_α
 end

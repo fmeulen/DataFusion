@@ -38,14 +38,16 @@ J = 5
 𝒫 = DF(α,  ξ,  σ2, ψ̄, ψ, t, Δ, typeobs, J, η, lrad_temp, ρ)
 
 
-propσ_α=0.2; propσ_ψ̄=0.2; prior_α = Exponential(10.0); prior_ψ̄ = Uniform(0,1); Aσ=0.1; Bσ=0.1; Aψ=0.1; Bψ=0.1; priorvarξ = 10.0
+propσ_α=0.2; propσ_ψ̄=0.5; prior_α = Exponential(10.0); prior_ψ̄ = Uniform(0,1);
+Aσ=0.1; Bσ=0.1; Aψ=0.1; Bψ=0.1; priorvarξ = 10.0
 priorvarξρ = 10.0#
 
 y = logconc
-ITER = 1000
+ITER = 10_000
 # using Profile
 # Profile.clear()
-@profile θ, X, 𝒫, accperc_α, = mcmc(𝒫, logconc; ITER = ITER, printskip=25, saveskip=10)
+# @profile
+θ, X, 𝒫, accperc_α, = mcmc(𝒫, logconc; ITER = ITER, printskip=25, saveskip=50)
 # Juno.profiler()
 
 if length(X) >=2

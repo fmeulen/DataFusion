@@ -107,4 +107,4 @@ dev.off()
 
 
 
-out <- loess(y ~t1, d1)
+
