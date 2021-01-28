@@ -44,10 +44,11 @@ priorvarξρ = 10.0#
 
 y = logconc
 ITER = 10_000
+θ, X, 𝒫, accperc_α, = mcmc(𝒫, logconc; ITER = ITER, printskip=25, saveskip=50)
+
 # using Profile
 # Profile.clear()
 # @profile
-θ, X, 𝒫, accperc_α, = mcmc(𝒫, logconc; ITER = ITER, printskip=25, saveskip=50)
 # Juno.profiler()
 
 if length(X) >=2

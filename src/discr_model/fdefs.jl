@@ -11,9 +11,7 @@ typeobs:: vector of characters containing info on type of observation at each ti
 (obs1: only in situ measurment; obs2: only satellite measurment; obs3: both measurements)
 """
 function readdata(path)
-	#dat = CSV.read(path)
 	dat = CSV.File(path) |> DataFrame!
-#	dat = dat[1:100,:]   ### FIXME just for testing
 	t = vcat(0.0,dat[!,:time_elapsed])
 	typeobs = String.(dat.obsscheme)#dat[!,:obsscheme]
 	Δ = diff(t)
@@ -36,7 +34,7 @@ end
 
 
 # Model: d X_t = - α (X_t - μ(t)) d t + σ d W_t
-# μ(t) = ∑ᵢ ξᵢ * ϕᵢ(t)
+# μ(t) = ∑ᵢ ξᵢ
 # extrinsic noise with variances governed by ψ
 
 struct DF{T}
